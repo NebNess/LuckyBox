@@ -19,6 +19,13 @@ use pocketmine\command\CommandSender;
 use pocketmine\command\Command;
 use pocketmine\utils\Config;
 
+/*TODO:
+ * 1. 랜덤박스 깠을 때 나오는 메시지 종류(UI, 액션바, 메시지, 안 띄우기)
+ * 2. 오피가 강조할 보상 선택해서 메시지나 액션바로 강조(아마 메시지)
+ * 3. 디폴트 false 필요하냐?
+ * 
+ * */
+
 class LuckyBox extends PluginBase implements Listener{
     
     public $api;
@@ -112,15 +119,17 @@ class LuckyBox extends PluginBase implements Listener{
         $inven = $player->getInventory();
         $hand = $inven->getItemInHand();
         
+        if ($event->getAction() !== PlayerInteractEvent::RIGHT_CLICK_BLOCK){
+            
+            return;
+            
+        }
+        
         if (in_array($name, array_keys($this->mode))){
             
-            if ($event->getAction() === PlayerInteractEvent::RIGHT_CLICK_BLOCK){
-                
-                $this->Return($player);
-                $event->setCancelled();
-                return;
-                
-            }
+            $this->Return($player);
+            $event->setCancelled();
+            return;
             
         }
             
@@ -139,51 +148,77 @@ class LuckyBox extends PluginBase implements Listener{
                 
             }
             
-            $hand->setCount($inven->getItemInHand()->getCount() - 1);
-            $inven->setItemInHand($hand);
-            
-            $rand = mt_rand(1,10000);
-            
-            $item = Item::get(Item::AIR);
-            
-            $com = 0;
-            $per = 0;
-            
-            foreach ($this->data["LuckyBox"][$SerialItem] as $key1 => $value1){
+            if ($player->isSneaking()){
                 
-                $value1 = explode(":", $value1);
-                $per = $per + $value1[2];
+                $this->cookie[$name] = $SerialItem;
                 
-                if ($com < $rand and $rand <= $com + $value1[2] * 100){
+                $form = $this->api->createCustomForm(function (Player $player, $data = null){
                     
-                    $item = $this->MakeExplode($key1);
-                    $item->setCount(mt_rand($value1[0], $value1[1]));
-                    break;
+                    $result = $data;
                     
-                }
+                    $result = $result[0];
+                    
+                    if ($result === null){
+                        return true;
+                    }
+                    
+                    if (!is_numeric($result)){
+                        
+                        $this->Default($player, $this->pre."숫자가 아닙니다.", FALSE);
+                        return;
+                        
+                    }
+                    
+                    $result = floor($result);
+                    
+                    if ($result < 1){
+                        
+                        $result = 1;
+                        
+                    }
+                    
+                    if ($result > 32){
+                        
+                        $this->Default($player, $this->pre."랜덤박스는 최대 32개까지만 한번에 열 수 있습니다.", FALSE);
+                        return;
+                        
+                    }
+                    
+                    $SerialItem = $this->cookie[$player->getName()];
+                    
+                    $count = 0;
+                    
+                    foreach ($player->getInventory()->all($this->MakeExplode($SerialItem)) as $item){
+                        
+                        $count = $count + $item->getCount();
+                        
+                    }
+                    
+                    if ($result > $count){
+                        
+                        $this->Default($player, $this->pre."인벤토리에 {$result}개의 랜덤박스가 없습니다.", FALSE);
+                        return;
+                        
+                    }
+                    
+                    for ($i = 0; $i < $result; $i++) {
+                        $this->GivingProcess($player, $SerialItem);
+                    }
+                    
+                });
+                    
+                    $form->setTitle("LuckyBox");
+                    
+                    $form->addInput("사용할 랜덤박스의 개수");
+                    
+                    $form->sendToPlayer($player);
+                    return $form;
                 
-                $com = $com + $value1[2] * 100;
+            }else{
+                
+                $this->GivingProcess($player, $SerialItem);
                 
             }
-            
-            $inven->addItem($item);
-            
-            $handN = $this->PostPosition($this->WithColor($hand->getName()));
-            $itemN = $this->PostPosition($this->WithColor($item->getName()));
-            
-            if ($item->getCount() !== 1){
-                
-                $itemN = $this->WithColor("{$item->getName()} {$item->getCount()}개를");
-                
-            }
-            
-            if ($item->getId() == Item::AIR){
-                
-                $value1[2] = 100 - $per;
-                
-            }
-            
-            $this->Default($player, "{$handN} 열어서 §c{$value1[2]}%%§r 확률로 {$itemN} 얻었습니다.", FALSE);
             
         }
         
@@ -666,6 +701,69 @@ class LuckyBox extends PluginBase implements Listener{
         });
             
             $this->Overlap($form, $player);
+        
+    }
+    
+    public function GivingProcess($player, $SerialItem){
+        
+        $inven = $player->getInventory();
+        $hand = $inven->getItemInHand();
+        
+        $hand->setCount(1);
+        
+        if ($hand->getId() !== Item::AIR){
+            
+            $hand->setCount($inven->getItemInHand()->getCount() - 1);
+            $inven->setItemInHand($hand);
+            
+        }else{
+            
+            $inven->removeItem($this->MakeExplode($SerialItem));
+            
+        }
+        
+        $rand = mt_rand(1,10000);
+        
+        $item = Item::get(Item::AIR);
+        
+        $com = 0;
+        $per = 0;
+        
+        foreach ($this->data["LuckyBox"][$SerialItem] as $key1 => $value1){
+            
+            $value1 = explode(":", $value1);
+            $per = $per + $value1[2];
+            
+            if ($com < $rand and $rand <= $com + $value1[2] * 100){
+                
+                $item = $this->MakeExplode($key1);
+                $item->setCount(mt_rand($value1[0], $value1[1]));
+                break;
+                
+            }
+            
+            $com = $com + $value1[2] * 100;
+            
+        }
+        
+        $inven->addItem($item);
+        
+        $handN = $this->PostPosition($this->WithColor($hand->getName()));
+        $itemN = $this->PostPosition($this->WithColor($item->getName()));
+        
+        if ($item->getCount() !== 1){
+            
+            $itemN = $this->WithColor("{$item->getName()} {$item->getCount()}§r개를");
+            
+        }
+        
+        if ($item->getId() == Item::AIR){
+            
+            $value1[2] = 100 - $per;
+            
+        }
+        
+        $this->Default($player, "{$handN} 열어서 §c{$value1[2]}%%§r 확률로 {$itemN} 얻었습니다.", FALSE);
         
     }
     
