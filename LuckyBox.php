@@ -162,6 +162,17 @@ class LuckyBox extends PluginBase implements Listener{
                         return true;
                     }
                     
+                    $SerialItem = $this->cookie[$player->getName()];
+                    
+                    $hand = $player->getInventory()->getItemInHand();
+                    $hand->setCount(1);
+                    
+                    if ($this->MakeImplode($hand) !== $SerialItem){
+                        
+                        return;
+                        
+                    }
+                    
                     if (!is_numeric($result)){
                         
                         $this->Default($player, $this->pre."숫자가 아닙니다.", FALSE);
@@ -183,8 +194,6 @@ class LuckyBox extends PluginBase implements Listener{
                         return;
                         
                     }
-                    
-                    $SerialItem = $this->cookie[$player->getName()];
                     
                     $count = 0;
                     
@@ -704,7 +713,7 @@ class LuckyBox extends PluginBase implements Listener{
         
     }
     
-    public function GivingProcess($player, $SerialItem){
+    private function GivingProcess($player, $SerialItem){
         
         $inven = $player->getInventory();
         $hand = $inven->getItemInHand();
