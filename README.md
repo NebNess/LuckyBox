@@ -1,2 +1,2 @@
 # LuckyBox
-UI로 구현된 랜덤박스 플러그인
+#FormApi로 구현된 UI 랜덤박스 플러그인
